@@ -170,9 +170,17 @@ function verify_hash($hash, $password) {
   }
   return false;
 }
-function check_login($user, $pass) {
+function check_login($user, $pass, $skip_ldap = false) {
 	global $pdo;
 	global $redis;
+	global $ldap_config;
+
+	if(!$skip_ldap && $ldap_config) {
+		$retval = ldap_check_login($user, $pass);
+		if($retval !== false)
+			return $retval;
+	}
+
 	if (!filter_var($user, FILTER_VALIDATE_EMAIL) && !ctype_alnum(str_replace(array('_', '.', '-'), '', $user))) {
 		return false;
 	}
