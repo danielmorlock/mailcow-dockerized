@@ -19,6 +19,7 @@ data/conf/nginx/*.custom
 data/conf/nginx/*.bak
 !data/conf/nginx/dynmaps.conf
 !data/conf/nginx/site.conf
+!data/conf/nginx/site_nossl.conf
 !data/conf/nginx/external.conf
 !data/conf/nginx/sogo.conf
 !data/conf/nginx/meta_exporter.conf
