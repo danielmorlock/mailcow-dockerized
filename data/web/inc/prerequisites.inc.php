@@ -69,6 +69,7 @@ catch (PDOException $e) {
 <?php
 exit;
 }
+/*
 // Stop when dockerapi is not available
 if (fsockopen("tcp://dockerapi", 443, $errno, $errstr) === false) {
 ?>
@@ -76,7 +77,7 @@ if (fsockopen("tcp://dockerapi", 443, $errno, $errstr) === false) {
 <?php
 exit;
 }
-
+*/
 function exception_handler($e) {
     if ($e instanceof PDOException) {
       $_SESSION['return'][] = array(
