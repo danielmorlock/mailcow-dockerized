@@ -16,10 +16,10 @@ header('Content-Type: application/json');
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/prerequisites.inc.php';
 error_reporting(0);
 
-function api_log($postarray) {
+function api_log($_data) {
   global $redis;
   $data_var = array();
-  foreach ($postarray as $data => &$value) {
+  foreach ($_data as $data => &$value) {
     if ($data == 'csrf_token') {
       continue;
     }
@@ -27,7 +27,7 @@ function api_log($postarray) {
       unset($value["csrf_token"]);
       foreach ($value as $key => &$val) {
         if(preg_match("/pass/i", $key)) {
-          $val = '********';
+          $val = '*';
         }
       }
       $value = json_encode($value);
@@ -39,13 +39,13 @@ function api_log($postarray) {
       'time' => time(),
       'uri' => $_SERVER['REQUEST_URI'],
       'method' => $_SERVER['REQUEST_METHOD'],
-      'remote' => $_SERVER['REMOTE_ADDR'],
+      'remote' => get_remote_ip(),
       'data' => implode(', ', $data_var)
     );
     $redis->lPush('API_LOG', json_encode($log_line));
   }
   catch (RedisException $e) {
-    $_SESSION['return'] = array(
+    $_SESSION['return'][] = array(
       'type' => 'danger',
       'msg' => 'Redis: '.$e
     );
@@ -93,6 +93,7 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
         }
         else {
           $attr = (array)json_decode($_POST['attr'], true);
+          unset($attr['csrf_token']);
         }
         switch ($category) {
           case "time_limited_alias":
@@ -100,6 +101,9 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
           break;
           case "relayhost":
             process_add_return(relayhost('add', $attr));
+          break;
+          case "transport":
+            process_add_return(transport('add', $attr));
           break;
           case "rsetting":
             process_add_return(rsettings('add', $attr));
@@ -134,11 +138,17 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
           case "dkim":
             process_add_return(dkim('add', $attr));
           break;
+          case "dkim_duplicate":
+            process_add_return(dkim('duplicate', $attr));
+          break;
           case "dkim_import":
             process_add_return(dkim('import', $attr));
           break;
           case "domain-admin":
             process_add_return(domain_admin('add', $attr));
+          break;
+          case "admin":
+            process_add_return(admin('add', $attr));
           break;
           case "syncjob":
             process_add_return(mailbox('add', 'syncjob', $attr));
@@ -148,6 +158,9 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
           break;
           case "recipient_map":
             process_add_return(recipient_map('add', $attr));
+          break;
+          case "tls-policy-map":
+            process_add_return(tls_policy_maps('add', $attr));
           break;
         }
       break;
@@ -160,7 +173,7 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
             switch ($object) {
               case "actions":
                 $curl = curl_init();
-                curl_setopt($curl, CURLOPT_UNIX_SOCKET_PATH, '/rspamd-sock/rspamd.sock');
+                curl_setopt($curl, CURLOPT_UNIX_SOCKET_PATH, '/var/lib/rspamd/rspamd.sock');
                 curl_setopt($curl, CURLOPT_URL,"http://rspamd/stat");
                 curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
                 $data = curl_exec($curl);
@@ -178,156 +191,9 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
                   echo '{}';
                 }
               break;
-              case "stat":
-                $data = file_get_contents('http://rspamd-mailcow:11334/stat');
-                process_get_return($data);
-              break;
-              case "graph":
-                switch ($extra) {
-                  case "hourly":
-                    $data = file_get_contents('http://rspamd-mailcow:11334/graph?type=hourly');
-                    if (!empty($data)) {
-                      $data_array = json_decode($data, true);
-                      $rejected['label'] = "reject";
-                      foreach ($data_array[0] as $dataset) {
-                        $rejected['data'][] = $dataset;
-                      }
-                      $temp_reject['label'] = "temp_reject";
-                      foreach ($data_array[1] as $dataset) {
-                        $temp_reject['data'][] = $dataset;
-                      }
-                      $add_header['label'] = "add_header";
-                      foreach ($data_array[2] as $dataset) {
-                        $add_header['data'][] = $dataset;
-                      }
-                      $prob_spam['label'] = "prob_spam";
-                      foreach ($data_array[3] as $dataset) {
-                        $prob_spam['data'][] = $dataset;
-                      }
-                      $greylist['label'] = "greylist";
-                      foreach ($data_array[4] as $dataset) {
-                        $greylist['data'][] = $dataset;
-                      }
-                      $clean['label'] = "clean";
-                      $clean['pointStyle'] = "cross";
-                      foreach ($data_array[5] as $dataset) {
-                        $clean['data'][] = $dataset;
-                      }
-                      echo json_encode(array($rejected, $temp_reject, $add_header, $prob_spam, $greylist, $clean), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-                    }
-                    elseif (!isset($data) || empty($data)) {
-                      echo '{}';
-                    }
-                  break;
-                  case "daily":
-                    $data = file_get_contents('http://rspamd-mailcow:11334/graph?type=daily');
-                    if (!empty($data)) {
-                      $data_array = json_decode($data, true);
-                      $rejected['label'] = "reject";
-                      foreach ($data_array[0] as $dataset) {
-                        $rejected['data'][] = $dataset;
-                      }
-                      $temp_reject['label'] = "temp_reject";
-                      foreach ($data_array[1] as $dataset) {
-                        $temp_reject['data'][] = $dataset;
-                      }
-                      $add_header['label'] = "add_header";
-                      foreach ($data_array[2] as $dataset) {
-                        $add_header['data'][] = $dataset;
-                      }
-                      $prob_spam['label'] = "prob_spam";
-                      foreach ($data_array[3] as $dataset) {
-                        $prob_spam['data'][] = $dataset;
-                      }
-                      $greylist['label'] = "greylist";
-                      foreach ($data_array[4] as $dataset) {
-                        $greylist['data'][] = $dataset;
-                      }
-                      $clean['label'] = "clean";
-                      $clean['pointStyle'] = "cross";
-                      foreach ($data_array[5] as $dataset) {
-                        $clean['data'][] = $dataset;
-                      }
-                      echo json_encode(array($rejected, $temp_reject, $add_header, $prob_spam, $greylist, $clean), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-                    }
-                    elseif (!isset($data) || empty($data)) {
-                      echo '{}';
-                    }
-                  break;
-                  case "weekly":
-                    $data = file_get_contents('http://rspamd-mailcow:11334/graph?type=weekly');
-                    if (!empty($data)) {
-                      $data_array = json_decode($data, true);
-                      $rejected['label'] = "reject";
-                      foreach ($data_array[0] as $dataset) {
-                        $rejected['data'][] = $dataset;
-                      }
-                      $temp_reject['label'] = "temp_reject";
-                      foreach ($data_array[1] as $dataset) {
-                        $temp_reject['data'][] = $dataset;
-                      }
-                      $add_header['label'] = "add_header";
-                      foreach ($data_array[2] as $dataset) {
-                        $add_header['data'][] = $dataset;
-                      }
-                      $prob_spam['label'] = "prob_spam";
-                      foreach ($data_array[3] as $dataset) {
-                        $prob_spam['data'][] = $dataset;
-                      }
-                      $greylist['label'] = "greylist";
-                      foreach ($data_array[4] as $dataset) {
-                        $greylist['data'][] = $dataset;
-                      }
-                      $clean['label'] = "clean";
-                      $clean['pointStyle'] = "cross";
-                      foreach ($data_array[5] as $dataset) {
-                        $clean['data'][] = $dataset;
-                      }
-                      echo json_encode(array($rejected, $temp_reject, $add_header, $prob_spam, $greylist, $clean), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-                    }
-                    elseif (!isset($data) || empty($data)) {
-                      echo '{}';
-                    }
-                  break;
-                  case "monthly":
-                    $data = file_get_contents('http://rspamd-mailcow:11334/graph?type=monthly');
-                    if (!empty($data)) {
-                      $data_array = json_decode($data, true);
-                      $rejected['label'] = "reject";
-                      foreach ($data_array[0] as $dataset) {
-                        $rejected['data'][] = $dataset;
-                      }
-                      $temp_reject['label'] = "temp_reject";
-                      foreach ($data_array[1] as $dataset) {
-                        $temp_reject['data'][] = $dataset;
-                      }
-                      $add_header['label'] = "add_header";
-                      foreach ($data_array[2] as $dataset) {
-                        $add_header['data'][] = $dataset;
-                      }
-                      $prob_spam['label'] = "prob_spam";
-                      foreach ($data_array[3] as $dataset) {
-                        $prob_spam['data'][] = $dataset;
-                      }
-                      $greylist['label'] = "greylist";
-                      foreach ($data_array[4] as $dataset) {
-                        $greylist['data'][] = $dataset;
-                      }
-                      $clean['label'] = "clean";
-                      $clean['pointStyle'] = "cross";
-                      foreach ($data_array[5] as $dataset) {
-                        $clean['data'][] = $dataset;
-                      }
-                      echo json_encode(array($rejected, $temp_reject, $add_header, $prob_spam, $greylist, $clean), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-                    }
-                    elseif (!isset($data) || empty($data)) {
-                      echo '{}';
-                    }
-                  break;
-                }
-              break;
             }
           break;
+
           case "domain":
             switch ($object) {
               case "all":
@@ -355,6 +221,81 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
             }
           break;
 
+          case "mailq":
+            switch ($object) {
+              case "all":
+                $mailq = mailq('get');
+                if (!empty($mailq)) {
+                  echo $mailq;
+                }
+                else {
+                  echo '{}';
+                }
+              break;
+            }
+          break;
+
+          case "rl-domain":
+            switch ($object) {
+              case "all":
+                $domains = array_merge(mailbox('get', 'domains'), mailbox('get', 'alias_domains'));
+                if (!empty($domains)) {
+                  foreach ($domains as $domain) {
+                    if ($details = ratelimit('get', 'domain', $domain)) {
+                      $details['domain'] = $domain;
+                      $data[] = $details;
+                    }
+                    else {
+                      continue;
+                    }
+                  }
+                  process_get_return($data);
+                }
+                else {
+                  echo '{}';
+                }
+              break;
+
+              default:
+                $data = ratelimit('get', 'domain', $object);
+                process_get_return($data);
+              break;
+            }
+          break;
+
+          case "rl-mbox":
+            switch ($object) {
+              case "all":
+                $domains = mailbox('get', 'domains');
+                if (!empty($domains)) {
+                  foreach ($domains as $domain) {
+                    $mailboxes = mailbox('get', 'mailboxes', $domain);
+                    if (!empty($mailboxes)) {
+                      foreach ($mailboxes as $mailbox) {
+                        if ($details = ratelimit('get', 'mailbox', $mailbox)) {
+                          $details['mailbox'] = $mailbox;
+                          $data[] = $details;
+                        }
+                        else {
+                          continue;
+                        }
+                      }
+                    }
+                  }
+                  process_get_return($data);
+                }
+                else {
+                  echo '{}';
+                }
+              break;
+
+              default:
+                $data = ratelimit('get', 'mailbox', $object);
+                process_get_return($data);
+              break;
+            }
+          break;
+
           case "relayhost":
             switch ($object) {
               case "all":
@@ -377,6 +318,33 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
 
               default:
                 $data = relayhost('details', $object);
+                process_get_return($data);
+              break;
+            }
+          break;
+
+          case "transport":
+            switch ($object) {
+              case "all":
+                $transports = transport('get');
+                if (!empty($transports)) {
+                  foreach ($transports as $transport) {
+                    if ($details = transport('details', $transport['id'])) {
+                      $data[] = $details;
+                    }
+                    else {
+                      continue;
+                    }
+                  }
+                  process_get_return($data);
+                }
+                else {
+                  echo '{}';
+                }
+              break;
+
+              default:
+                $data = transport('details', $object);
                 process_get_return($data);
               break;
             }
@@ -449,6 +417,17 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
                 }
                 echo (isset($logs) && !empty($logs)) ? json_encode($logs, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) : '{}';
               break;
+              case "ratelimited":
+                // 0 is first record, so empty is fine
+                if (isset($extra)) {
+                  $extra = preg_replace('/[^\d\-]/i', '', $extra);
+                  $logs = get_logs('ratelimited', $extra);
+                }
+                else {
+                  $logs = get_logs('ratelimited');
+                }
+                echo (isset($logs) && !empty($logs)) ? json_encode($logs, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) : '{}';
+              break;
               case "netfilter":
                 // 0 is first record, so empty is fine
                 if (isset($extra)) {
@@ -490,6 +469,17 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
                 }
                 else {
                   $logs = get_logs('sogo-mailcow');
+                }
+                echo (isset($logs) && !empty($logs)) ? json_encode($logs, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) : '{}';
+              break;
+              case "ui":
+                // 0 is first record, so empty is fine
+                if (isset($extra)) {
+                  $extra = preg_replace('/[^\d\-]/i', '', $extra);
+                  $logs = get_logs('mailcow-ui', $extra);
+                }
+                else {
+                  $logs = get_logs('mailcow-ui');
                 }
                 echo (isset($logs) && !empty($logs)) ? json_encode($logs, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) : '{}';
               break;
@@ -733,6 +723,31 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
               break;
             }
           break;
+          case "tls-policy-map":
+            switch ($object) {
+              case "all":
+                $tls_policy_maps_items = tls_policy_maps('get');
+                if (!empty($tls_policy_maps_items)) {
+                  foreach ($tls_policy_maps_items as $tls_policy_maps_item) {
+                    if ($details = tls_policy_maps('details', $tls_policy_maps_item)) {
+                      $data[] = $details;
+                    }
+                    else {
+                      continue;
+                    }
+                  }
+                }
+                process_get_return($data);
+              break;
+              default:
+                $data = tls_policy_maps('details', $object);
+                if (!empty($data)) {
+                  $data[] = $details;
+                }
+                process_get_return($data);
+              break;
+            }
+          break;
           case "policy_wl_mailbox":
             switch ($object) {
               default:
@@ -900,6 +915,31 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
               break;
             }
           break;
+          case "admin":
+            switch ($object) {
+              case "all":
+                $admins = admin('get');
+                if (!empty($admins)) {
+                  foreach ($admins as $admin) {
+                    if ($details = admin('details', $admin)) {
+                      $data[] = $details;
+                    }
+                    else {
+                      continue;
+                    }
+                  }
+                  process_get_return($data);
+                }
+                else {
+                  echo '{}';
+                }
+              break;
+
+              default:
+                process_get_return(admin('details', $object));
+              break;
+            }
+          break;
           case "u2f-registration":
             header('Content-Type: application/javascript');
             if (($_SESSION["mailcow_cc_role"] == "admin" || $_SESSION["mailcow_cc_role"] == "domainadmin") && $_SESSION["mailcow_cc_username"] == $object) {
@@ -936,6 +976,14 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
               return;
             }
           break;
+          case "dkim":
+            switch ($object) {
+              default:
+                $data = dkim('details', $object);
+                  process_get_return($data);
+                  break;
+            }
+          break;
           default:
             echo '{}';
           break;
@@ -967,10 +1015,13 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
         }
         switch ($category) {
           case "alias":
-            process_delete_return(mailbox('delete', 'alias', array('address' => $items)));
+            process_delete_return(mailbox('delete', 'alias', array('id' => $items)));
           break;
           case "relayhost":
             process_delete_return(relayhost('delete', array('id' => $items)));
+          break;
+          case "transport":
+            process_delete_return(transport('delete', array('id' => $items)));
           break;
           case "rsetting":
             process_delete_return(rsettings('delete', array('id' => $items)));
@@ -981,6 +1032,9 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
           case "filter":
             process_delete_return(mailbox('delete', 'filter', array('id' => $items)));
           break;
+          case "mailq":
+            process_delete_return(mailq('delete', array('qid' => $items)));
+          break;
           case "qitem":
             process_delete_return(quarantine('delete', array('id' => $items)));
           break;
@@ -989,6 +1043,9 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
           break;
           case "recipient_map":
             process_delete_return(recipient_map('delete', array('id' => $items)));
+          break;
+          case "tls-policy-map":
+            process_delete_return(tls_policy_maps('delete', array('id' => $items)));
           break;
           case "fwdhost":
             process_delete_return(fwdhost('delete', array('forwardinghost' => $items)));
@@ -1021,8 +1078,17 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
           case "eas_cache":
             process_delete_return(mailbox('delete', 'eas_cache', array('username' => $items)));
           break;
+          case "sogo_profile":
+            process_delete_return(mailbox('delete', 'sogo_profile', array('username' => $items)));
+          break;
           case "domain-admin":
             process_delete_return(domain_admin('delete', array('username' => $items)));
+          break;
+          case "admin":
+            process_delete_return(admin('delete', array('username' => $items)));
+          break;
+          case "rlhash":
+            echo ratelimit('delete', null, implode($items));
           break;
         }
       break;
@@ -1049,6 +1115,7 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
         }
         else {
           $attr = (array)json_decode($_POST['attr'], true);
+          unset($attr['csrf_token']);
           $items = isset($_POST['items']) ? (array)json_decode($_POST['items'], true) : null;
         }
         switch ($category) {
@@ -1061,14 +1128,20 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
           case "recipient_map":
             process_edit_return(recipient_map('edit', array_merge(array('id' => $items), $attr)));
           break;
+          case "tls-policy-map":
+            process_edit_return(tls_policy_maps('edit', array_merge(array('id' => $items), $attr)));
+          break;
           case "alias":
-            process_edit_return(mailbox('edit', 'alias', array_merge(array('address' => $items), $attr)));
+            process_edit_return(mailbox('edit', 'alias', array_merge(array('id' => $items), $attr)));
           break;
           case "app_links":
             process_edit_return(customize('edit', 'app_links', $attr));
           break;
           case "relayhost":
             process_edit_return(relayhost('edit', array_merge(array('id' => $items), $attr)));
+          break;
+          case "transport":
+            process_edit_return(transport('edit', array_merge(array('id' => $items), $attr)));
           break;
           case "rsetting":
             process_edit_return(rsettings('edit', array_merge(array('id' => $items), $attr)));
@@ -1079,11 +1152,20 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
           case "tls_policy":
             process_edit_return(mailbox('edit', 'tls_policy', array_merge(array('username' => $items), $attr)));
           break;
+          case "quarantine_notification":
+            process_edit_return(mailbox('edit', 'quarantine_notification', array_merge(array('username' => $items), $attr)));
+          break;
           case "qitem":
             process_edit_return(quarantine('edit', array_merge(array('id' => $items), $attr)));
           break;
           case "quarantine":
             process_edit_return(quarantine('edit', $attr));
+          break;
+          case "quota_notification":
+            process_edit_return(quota_notification('edit', $attr));
+          break;
+          case "mailq":
+            process_edit_return(mailq('edit', array_merge(array('qid' => $items), $attr)));
           break;
           case "time_limited_alias":
             process_edit_return(mailbox('edit', 'time_limited_alias', array_merge(array('address' => $items), $attr)));
@@ -1103,8 +1185,17 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
           case "domain":
             process_edit_return(mailbox('edit', 'domain', array_merge(array('domain' => $items), $attr)));
           break;
-          case "ratelimit":
-            process_edit_return(mailbox('edit', 'ratelimit', array_merge(array('object' => $items), $attr)));
+          case "rl-domain":
+            process_edit_return(ratelimit('edit', 'domain', array_merge(array('object' => $items), $attr)));
+          break;
+          case "rl-mbox":
+            process_edit_return(ratelimit('edit', 'mailbox', array_merge(array('object' => $items), $attr)));
+          break;
+          case "user-acl":
+            process_edit_return(acl('edit', 'user', array_merge(array('username' => $items), $attr)));
+          break;
+          case "da-acl":
+            process_edit_return(acl('edit', 'domainadmin', array_merge(array('username' => $items), $attr)));
           break;
           case "alias-domain":
             process_edit_return(mailbox('edit', 'alias_domain', array_merge(array('alias_domain' => $items), $attr)));
@@ -1114,6 +1205,9 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
           break;
           case "domain-admin":
             process_edit_return(domain_admin('edit', array_merge(array('username' => $items), $attr)));
+          break;
+          case "admin":
+            process_edit_return(admin('edit', array_merge(array('username' => $items), $attr)));
           break;
           case "fwdhost":
             process_edit_return(fwdhost('edit', array_merge(array('fwdhost' => $items), $attr)));
@@ -1130,9 +1224,6 @@ if (isset($_SESSION['mailcow_cc_role']) || isset($_SESSION['pending_mailcow_cc_u
             }
             elseif ($_SESSION['mailcow_cc_role'] == "user") {
               process_edit_return(edit_user_account($attr));
-            }
-            elseif ($_SESSION['mailcow_cc_role'] == "admin") {
-              process_edit_return(edit_admin_account($attr));
             }
           break;
         }

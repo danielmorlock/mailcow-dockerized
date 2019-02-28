@@ -1,6 +1,6 @@
 <?php
-require_once 'inc/vars.inc.php';
-require_once 'inc/functions.inc.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/vars.inc.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/functions.inc.php';
 $default_autodiscover_config = $autodiscover_config;
 if(file_exists('inc/vars.local.inc.php')) {
   include_once 'inc/vars.local.inc.php';
@@ -27,7 +27,8 @@ if (strpos($data, 'autodiscover/outlook/responseschema') !== false) {
   }
 }
 
-$dsn = $database_type . ":host=" . $database_host . ";dbname=" . $database_name;
+//$dsn = $database_type . ":host=" . $database_host . ";dbname=" . $database_name;
+$dsn = $database_type . ":unix_socket=" . $database_sock . ";dbname=" . $database_name;
 $opt = [
   PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
   PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -38,25 +39,15 @@ $login_user = strtolower(trim($_SERVER['PHP_AUTH_USER']));
 $login_pass = trim(htmlspecialchars_decode($_SERVER['PHP_AUTH_PW']));
 
 if (empty($_SERVER['PHP_AUTH_USER']) || empty($_SERVER['PHP_AUTH_PW'])) {
-  try {
-    $json = json_encode(
-      array(
-        "time" => time(),
-        "ua" => $_SERVER['HTTP_USER_AGENT'],
-        "user" => "none",
-        "service" => "Error: must be authenticated"
-      )
-    );
-    $redis->lPush('AUTODISCOVER_LOG', $json);
-    $redis->lTrim('AUTODISCOVER_LOG', 0, 100);
-  }
-  catch (RedisException $e) {
-    $_SESSION['return'] = array(
-      'type' => 'danger',
-      'msg' => 'Redis: '.$e
-    );
-    return false;
-  }
+  $json = json_encode(
+    array(
+      "time" => time(),
+      "ua" => $_SERVER['HTTP_USER_AGENT'],
+      "user" => "none",
+      "service" => "Error: must be authenticated"
+    )
+  );
+  $redis->lPush('AUTODISCOVER_LOG', $json);
   header('WWW-Authenticate: Basic realm="' . $_SERVER['HTTP_HOST'] . '"');
   header('HTTP/1.0 401 Unauthorized');
   exit(0);
@@ -84,7 +75,7 @@ if ($login_role === "user") {
       $redis->lTrim('AUTODISCOVER_LOG', 0, 100);
     }
     catch (RedisException $e) {
-      $_SESSION['return'] = array(
+      $_SESSION['return'][] = array(
         'type' => 'danger',
         'msg' => 'Redis: '.$e
       );
@@ -138,7 +129,7 @@ if ($login_role === "user") {
     $redis->lTrim('AUTODISCOVER_LOG', 0, 100);
   }
   catch (RedisException $e) {
-    $_SESSION['return'] = array(
+    $_SESSION['return'][] = array(
       'type' => 'danger',
       'msg' => 'Redis: '.$e
     );

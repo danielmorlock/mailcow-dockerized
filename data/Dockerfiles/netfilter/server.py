@@ -10,20 +10,28 @@ from random import randint
 from threading import Thread
 from threading import Lock
 import redis
-import time
 import json
 import iptc
 
-r = redis.StrictRedis(host=os.getenv('IPV4_NETWORK', '172.22.1') + '.249', decode_responses=True, port=6379, db=0)
+while True:
+  try:
+    r = redis.StrictRedis(host=os.getenv('IPV4_NETWORK', '172.22.1') + '.249', decode_responses=True, port=6379, db=0)
+    r.ping()
+  except Exception as ex:
+    print '%s - trying again in 3 seconds'  % (ex)
+    time.sleep(3)
+  else:
+    break
+
 pubsub = r.pubsub()
 
 RULES = {}
 RULES[1] = 'warning: .*\[([0-9a-f\.:]+)\]: SASL .+ authentication failed'
 RULES[2] = '-login: Disconnected \(auth failed, .+\): user=.*, method=.+, rip=([0-9a-f\.:]+),'
-RULES[3] = '-login: Aborted login \(no auth .+\): user=.+, rip=([0-9a-f\.:]+), lip.+'
-RULES[4] = '-login: Aborted login \(tried to use disallowed .+\): user=.+, rip=([0-9a-f\.:]+), lip.+'
-RULES[5] = 'SOGo.+ Login from \'([0-9a-f\.:]+)\' for user .+ might not have worked'
-RULES[6] = 'mailcow UI: Invalid password for .+ by ([0-9a-f\.:]+)'
+RULES[3] = '-login: Aborted login \(tried to use disallowed .+\): user=.+, rip=([0-9a-f\.:]+), lip.+'
+RULES[4] = 'SOGo.+ Login from \'([0-9a-f\.:]+)\' for user .+ might not have worked'
+RULES[5] = 'mailcow UI: Invalid password for .+ by ([0-9a-f\.:]+)'
+#RULES[6] = '-login: Aborted login \(no auth .+\): user=.+, rip=([0-9a-f\.:]+), lip.+'
 
 bans = {}
 log = {}

@@ -1,8 +1,8 @@
 <?php
-require_once "inc/prerequisites.inc.php";
+require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/prerequisites.inc.php';
 
 if (isset($_SESSION['mailcow_cc_role']) && ($_SESSION['mailcow_cc_role'] == "admin" || $_SESSION['mailcow_cc_role'] == "domainadmin")) {
-require_once "inc/header.inc.php";
+require_once $_SERVER['DOCUMENT_ROOT'] .  '/inc/header.inc.php';
 $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
 ?>
 <div class="container">
@@ -22,6 +22,7 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
     <li role="presentation"><a href="#tab-syncjobs" aria-controls="tab-syncjobs" role="tab" data-toggle="tab"><?=$lang['mailbox']['sync_jobs'];?></a></li>
     <li role="presentation"><a href="#tab-filters" aria-controls="tab-filters" role="tab" data-toggle="tab"><?=$lang['mailbox']['filters'];?></a></li>
     <li role="presentation"><a href="#tab-bcc" aria-controls="tab-filters" role="tab" data-toggle="tab"><?=$lang['mailbox']['address_rewriting'];?></a></li>
+    <li role="presentation"<?=($_SESSION['mailcow_cc_role'] == "admin") ?: ' class="hidden"';?>><a href="#tab-tls-policy" aria-controls="tab-tls-policy" role="tab" data-toggle="tab"><?=$lang['mailbox']['tls_policy_maps'];?></a></li>
   </ul>
 
 	<div class="row">
@@ -30,7 +31,10 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
         <div role="tabpanel" class="tab-pane active" id="tab-domains">
           <div class="panel panel-default">
             <div class="panel-heading">
-              <h3 class="panel-title"><?=$lang['mailbox']['domains'];?></h3>
+              <?=$lang['mailbox']['domains'];?> <span class="badge badge-info table-lines"></span>
+              <div class="btn-group pull-right">
+                <button class="btn btn-xs btn-default refresh_table" data-draw="draw_domain_table" data-table="domain_table"><?=$lang['admin']['refresh'];?></button>
+              </div>
             </div>
             <div class="table-responsive">
               <table id="domain_table" class="table table-striped"></table>
@@ -41,10 +45,10 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
                 <a class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" href="#"><?=$lang['mailbox']['quick_actions'];?> <span class="caret"></span></a>
                 <ul class="dropdown-menu">
                   <? if($_SESSION['mailcow_cc_role'] == "admin"): ?>
-                    <li><a id="edit_selected" data-id="domain" data-api-url='edit/domain' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
-                    <li><a id="edit_selected" data-id="domain" data-api-url='edit/domain' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                    <li><a data-action="edit_selected" data-id="domain" data-api-url='edit/domain' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
+                    <li><a data-action="edit_selected" data-id="domain" data-api-url='edit/domain' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
                     <li role="separator" class="divider"></li>
-                    <li><a id="delete_selected" data-id="domain" data-api-url='delete/domain' href="#"><?=$lang['mailbox']['remove'];?></a></li>
+                    <li><a data-action="delete_selected" data-id="domain" data-api-url='delete/domain' href="#"><?=$lang['mailbox']['remove'];?></a></li>
                   <? endif; ?>
                 </ul>
                 <? if($_SESSION['mailcow_cc_role'] == "admin"): ?>
@@ -58,7 +62,10 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
         <div role="tabpanel" class="tab-pane" id="tab-mailboxes">
           <div class="panel panel-default">
             <div class="panel-heading">
-              <h3 class="panel-title"><?=$lang['mailbox']['mailboxes'];?></h3>
+              <?=$lang['mailbox']['mailboxes'];?> <span class="badge badge-info table-lines"></span>
+              <div class="btn-group pull-right">
+                <button class="btn btn-xs btn-default refresh_table" data-draw="draw_mailbox_table" data-table="mailbox_table"><?=$lang['admin']['refresh'];?></button>
+              </div>
             </div>
             <div class="table-responsive">
               <table id="mailbox_table" class="table table-striped"></table>
@@ -68,10 +75,24 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
                 <a class="btn btn-sm btn-default" id="toggle_multi_select_all" data-id="mailbox" href="#"><span class="glyphicon glyphicon-check" aria-hidden="true"></span> <?=$lang['mailbox']['toggle_all'];?></a>
                 <a class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" href="#"><?=$lang['mailbox']['quick_actions'];?> <span class="caret"></span></a>
                 <ul class="dropdown-menu">
-                  <li><a id="edit_selected" data-id="mailbox" data-api-url='edit/mailbox' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
-                  <li><a id="edit_selected" data-id="mailbox" data-api-url='edit/mailbox' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                  <li class="dropdown-header"><?=$lang['mailbox']['mailbox'];?></li>
+                  <li><a data-action="edit_selected" data-id="mailbox" data-api-url='edit/mailbox' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="mailbox" data-api-url='edit/mailbox' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                  <li><a data-action="delete_selected" data-id="mailbox" data-api-url='delete/mailbox' href="#"><?=$lang['mailbox']['remove'];?></a></li>
                   <li role="separator" class="divider"></li>
-                  <li><a id="delete_selected" data-id="mailbox" data-api-url='delete/mailbox' href="#"><?=$lang['mailbox']['remove'];?></a></li>
+                  <li class="dropdown-header"><?=$lang['mailbox']['tls_enforce_in'];?></li>
+                  <li><a data-action="edit_selected" data-id="mailbox" data-api-url='edit/tls_policy' data-api-attr='{"tls_enforce_in":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="mailbox" data-api-url='edit/tls_policy' data-api-attr='{"tls_enforce_in":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                  <li role="separator" class="divider"></li>
+                  <li class="dropdown-header"><?=$lang['mailbox']['tls_enforce_out'];?></li>
+                  <li><a data-action="edit_selected" data-id="mailbox" data-api-url='edit/tls_policy' data-api-attr='{"tls_enforce_out":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="mailbox" data-api-url='edit/tls_policy' data-api-attr='{"tls_enforce_out":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                  <li role="separator" class="divider"></li>
+                  <li class="dropdown-header"><?=$lang['mailbox']['quarantine_notification'];?></li>
+                  <li><a data-action="edit_selected" data-id="mailbox" data-api-url='edit/quarantine_notification' data-api-attr='{"quarantine_notification":"hourly"}' href="#"><?=$lang['user']['hourly'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="mailbox" data-api-url='edit/quarantine_notification' data-api-attr='{"quarantine_notification":"daily"}' href="#"><?=$lang['user']['daily'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="mailbox" data-api-url='edit/quarantine_notification' data-api-attr='{"quarantine_notification":"weekly"}' href="#"><?=$lang['user']['weekly'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="mailbox" data-api-url='edit/quarantine_notification' data-api-attr='{"quarantine_notification":"never"}' href="#"><?=$lang['user']['never'];?></a></li>
                 </ul>
                 <a class="btn btn-sm btn-success" href="#" data-toggle="modal" data-target="#addMailboxModal"><span class="glyphicon glyphicon-plus"></span> <?=$lang['mailbox']['add_mailbox'];?></a>
               </div>
@@ -82,7 +103,10 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
         <div role="tabpanel" class="tab-pane" id="tab-resources">
           <div class="panel panel-default">
             <div class="panel-heading">
-              <h3 class="panel-title"><?=$lang['mailbox']['resources'];?></h3>
+              <?=$lang['mailbox']['resources'];?> <span class="badge badge-info table-lines"></span>
+              <div class="btn-group pull-right">
+                <button class="btn btn-xs btn-default refresh_table" data-draw="draw_resource_table" data-table="resource_table"><?=$lang['admin']['refresh'];?></button>
+              </div>
             </div>
             <div class="table-responsive">
               <table id="resource_table" class="table table-striped"></table>
@@ -92,10 +116,10 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
                 <a class="btn btn-sm btn-default" id="toggle_multi_select_all" data-id="resource" href="#"><span class="glyphicon glyphicon-check" aria-hidden="true"></span> <?=$lang['mailbox']['toggle_all'];?></a>
                 <a class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" href="#"><?=$lang['mailbox']['quick_actions'];?> <span class="caret"></span></a>
                 <ul class="dropdown-menu">
-                  <li><a id="edit_selected" data-id="resource" data-api-url='edit/resource' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
-                  <li><a id="edit_selected" data-id="resource" data-api-url='edit/resource' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="resource" data-api-url='edit/resource' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="resource" data-api-url='edit/resource' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
                   <li role="separator" class="divider"></li>
-                  <li><a id="delete_selected" data-id="resource" data-api-url='delete/resource' href="#"><?=$lang['mailbox']['remove'];?></a></li>
+                  <li><a data-action="delete_selected" data-id="resource" data-api-url='delete/resource' href="#"><?=$lang['mailbox']['remove'];?></a></li>
                 </ul>
                 <a class="btn btn-sm btn-success" href="#" data-toggle="modal" data-target="#addResourceModal"><span class="glyphicon glyphicon-plus"></span> <?=$lang['mailbox']['add_resource'];?></a>
               </div>
@@ -112,10 +136,10 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
         <div role="tabpanel" class="tab-pane" id="tab-domain-aliases">
           <div class="panel panel-default">
             <div class="panel-heading">
-              <div class="pull-right">
-                <a href="#" data-toggle="modal" data-target="#addAliasDomainModal" ><span class="glyphicon glyphicon-plus"></span></a>
+              <?=$lang['mailbox']['domain_aliases'];?> <span class="badge badge-info table-lines"></span>
+              <div class="btn-group pull-right">
+                <button class="btn btn-xs btn-default refresh_table" data-draw="draw_aliasdomain_table" data-table="aliasdomain_table"><?=$lang['admin']['refresh'];?></button>
               </div>
-              <h3 class="panel-title"><?=$lang['mailbox']['domain_aliases'];?></h3>
             </div>
             <div class="table-responsive">
               <table id="aliasdomain_table" class="table table-striped"></table>
@@ -125,12 +149,12 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
                 <a class="btn btn-sm btn-default" id="toggle_multi_select_all" data-id="alias-domain" href="#"><span class="glyphicon glyphicon-check" aria-hidden="true"></span> <?=$lang['mailbox']['toggle_all'];?></a>
                 <a class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" href="#"><?=$lang['mailbox']['quick_actions'];?> <span class="caret"></span></a>
                 <ul class="dropdown-menu">
-                  <li><a id="edit_selected" data-id="alias-domain" data-api-url='edit/alias-domain' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
-                  <li><a id="edit_selected" data-id="alias-domain" data-api-url='edit/alias-domain' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="alias-domain" data-api-url='edit/alias-domain' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="alias-domain" data-api-url='edit/alias-domain' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
                   <li role="separator" class="divider"></li>
-                  <li><a id="delete_selected" data-id="alias-domain" data-api-url='delete/alias-domain' href="#"><?=$lang['mailbox']['remove'];?></a></li>
+                  <li><a data-action="delete_selected" data-id="alias-domain" data-api-url='delete/alias-domain' href="#"><?=$lang['mailbox']['remove'];?></a></li>
                 </ul>
-                <a class="btn btn-sm btn-success" href="#" data-toggle="modal" data-target="#addAliasDomainModal"><span class="glyphicon glyphicon-plus"></span> <?=$lang['mailbox']['add_domain_alias'];?></a>
+                <a class="btn btn-sm btn-success" href="#" data-acl="<?=$_SESSION['acl']['alias_domains'];?>" data-toggle="modal" data-target="#addAliasDomainModal"><span class="glyphicon glyphicon-plus"></span> <?=$lang['mailbox']['add_domain_alias'];?></a>
               </div>
             </div>
           </div>
@@ -139,7 +163,10 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
         <div role="tabpanel" class="tab-pane" id="tab-mbox-aliases">
           <div class="panel panel-default">
             <div class="panel-heading">
-              <h3 class="panel-title"><?=$lang['mailbox']['aliases'];?></h3>
+              <?=$lang['mailbox']['aliases'];?> <span class="badge badge-info table-lines"></span>
+              <div class="btn-group pull-right">
+                <button class="btn btn-xs btn-default refresh_table" data-draw="draw_alias_table" data-table="alias_table"><?=$lang['admin']['refresh'];?></button>
+              </div>
             </div>
             <div class="table-responsive">
               <table id="alias_table" class="table table-striped"></table>
@@ -149,10 +176,10 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
                 <a class="btn btn-sm btn-default" id="toggle_multi_select_all" data-id="alias" href="#"><span class="glyphicon glyphicon-check" aria-hidden="true"></span> <?=$lang['mailbox']['toggle_all'];?></a>
                 <a class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" href="#"><?=$lang['mailbox']['quick_actions'];?> <span class="caret"></span></a>
                 <ul class="dropdown-menu">
-                  <li><a id="edit_selected" data-id="alias" data-api-url='edit/alias' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
-                  <li><a id="edit_selected" data-id="alias" data-api-url='edit/alias' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="alias" data-api-url='edit/alias' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="alias" data-api-url='edit/alias' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
                   <li role="separator" class="divider"></li>
-                  <li><a id="delete_selected" data-id="alias" data-api-url='delete/alias' href="#"><?=$lang['mailbox']['remove'];?></a></li>
+                  <li><a data-action="delete_selected" data-id="alias" data-api-url='delete/alias' href="#"><?=$lang['mailbox']['remove'];?></a></li>
                 </ul>
                 <a class="btn btn-sm btn-success" href="#" data-toggle="modal" data-target="#addAliasModal"><span class="glyphicon glyphicon-plus"></span> <?=$lang['mailbox']['add_alias'];?></a>
               </div>
@@ -163,22 +190,25 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
         <div role="tabpanel" class="tab-pane" id="tab-syncjobs">
           <div class="panel panel-default">
             <div class="panel-heading">
-              <h3 class="panel-title"><?=$lang['mailbox']['sync_jobs'];?></h3>
+              <?=$lang['mailbox']['sync_jobs'];?> <span class="badge badge-info table-lines"></span>
+              <div class="btn-group pull-right">
+                <button class="btn btn-xs btn-default refresh_table" data-draw="draw_sync_job_table" data-table="sync_job_table"><?=$lang['admin']['refresh'];?></button>
+              </div>
             </div>
             <div class="table-responsive">
               <table class="table table-striped" id="sync_job_table"></table>
             </div>
             <div class="mass-actions-mailbox">
-              <div class="btn-group">
+              <div class="btn-group" data-acl="<?=$_SESSION['acl']['syncjobs'];?>">
                 <a class="btn btn-sm btn-default" id="toggle_multi_select_all" data-id="syncjob" href="#"><span class="glyphicon glyphicon-check" aria-hidden="true"></span> <?=$lang['mailbox']['toggle_all'];?></a>
                 <a class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" href="#"><?=$lang['mailbox']['quick_actions'];?> <span class="caret"></span></a>
                 <ul class="dropdown-menu">
-                  <li><a id="edit_selected" data-id="syncjob" data-api-url='edit/syncjob' data-api-attr='{"last_run":""}' href="#"><?=$lang['mailbox']['last_run_reset'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="syncjob" data-api-url='edit/syncjob' data-api-attr='{"last_run":""}' href="#"><?=$lang['mailbox']['last_run_reset'];?></a></li>
                   <li role="separator" class="divider"></li>
-                  <li><a id="edit_selected" data-id="syncjob" data-api-url='edit/syncjob' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
-                  <li><a id="edit_selected" data-id="syncjob" data-api-url='edit/syncjob' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="syncjob" data-api-url='edit/syncjob' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="syncjob" data-api-url='edit/syncjob' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
                   <li role="separator" class="divider"></li>
-                  <li><a id="delete_selected" data-text="<?=$lang['user']['eas_reset'];?>?" data-id="syncjob" data-api-url='delete/syncjob' href="#"><?=$lang['mailbox']['remove'];?></a></li>
+                  <li><a data-action="delete_selected" data-id="syncjob" data-api-url='delete/syncjob' href="#"><?=$lang['mailbox']['remove'];?></a></li>
                 </ul>
                 <a class="btn btn-sm btn-success" href="#" data-toggle="modal" data-target="#addSyncJobModalAdmin"><span class="glyphicon glyphicon-plus"></span> <?=$lang['user']['create_syncjob'];?></a>
               </div>
@@ -189,24 +219,27 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
         <div role="tabpanel" class="tab-pane" id="tab-filters">
           <div class="panel panel-default">
             <div class="panel-heading">
-              <h3 class="panel-title"><?=$lang['mailbox']['filters'];?></h3>
+              <?=$lang['mailbox']['filters'];?> <span class="badge badge-info table-lines"></span>
+              <div class="btn-group pull-right">
+                <button class="btn btn-xs btn-default refresh_table" data-draw="draw_filter_table" data-table="filter_table"><?=$lang['admin']['refresh'];?></button>
+              </div>
             </div>
             <p style="margin:10px" class="help-block"><?=$lang['mailbox']['sieve_info'];?></p>
             <div class="table-responsive">
               <table class="table table-striped" id="filter_table"></table>
             </div>
             <div class="mass-actions-mailbox">
-              <div class="btn-group">
+              <div class="btn-group" data-acl="<?=$_SESSION['acl']['filters'];?>">
                 <a class="btn btn-sm btn-default" id="toggle_multi_select_all" data-id="filter_item" href="#"><span class="glyphicon glyphicon-check" aria-hidden="true"></span> <?=$lang['mailbox']['toggle_all'];?></a>
                 <a class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" href="#"><?=$lang['mailbox']['quick_actions'];?> <span class="caret"></span></a>
                 <ul class="dropdown-menu">
-                  <li><a id="edit_selected" data-id="filter_item" data-api-url='edit/filter' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
-                  <li><a id="edit_selected" data-id="filter_item" data-api-url='edit/filter' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="filter_item" data-api-url='edit/filter' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="filter_item" data-api-url='edit/filter' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
                   <li role="separator" class="divider"></li>
-                  <li><a id="edit_selected" data-id="filter_item" data-api-url='edit/filter' data-api-attr='{"filter_type":"prefilter"}' href="#"><?=$lang['mailbox']['set_prefilter'];?></a></li>
-                  <li><a id="edit_selected" data-id="filter_item" data-api-url='edit/filter' data-api-attr='{"filter_type":"postfilter"}' href="#"><?=$lang['mailbox']['set_postfilter'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="filter_item" data-api-url='edit/filter' data-api-attr='{"filter_type":"prefilter"}' href="#"><?=$lang['mailbox']['set_prefilter'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="filter_item" data-api-url='edit/filter' data-api-attr='{"filter_type":"postfilter"}' href="#"><?=$lang['mailbox']['set_postfilter'];?></a></li>
                   <li role="separator" class="divider"></li>
-                  <li><a id="delete_selected" data-text="<?=$lang['user']['eas_reset'];?>?" data-id="filter_item" data-api-url='delete/filter' href="#"><?=$lang['mailbox']['remove'];?></a></li>
+                  <li><a data-action="delete_selected" data-text="<?=$lang['user']['eas_reset'];?>?" data-id="filter_item" data-api-url='delete/filter' href="#"><?=$lang['mailbox']['remove'];?></a></li>
                 </ul>
                 <a class="btn btn-sm btn-success" href="#" data-toggle="modal" data-target="#addFilterModalAdmin"><span class="glyphicon glyphicon-plus"></span> <?=$lang['mailbox']['add_filter'];?></a>
               </div>
@@ -217,54 +250,82 @@ $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
         <div role="tabpanel" class="tab-pane" id="tab-bcc">
           <div class="panel panel-default">
             <div class="panel-heading">
-              <h3 class="panel-title"><?=$lang['mailbox']['bcc_maps'];?></h3>
+              <?=$lang['mailbox']['bcc_maps'];?> <span class="badge badge-info table-lines"></span>
+              <div class="btn-group pull-right">
+                <button class="btn btn-xs btn-default refresh_table" data-draw="draw_bcc_table" data-table="bcc_table"><?=$lang['admin']['refresh'];?></button>
+              </div>
             </div>
             <p style="margin:10px" class="help-block"><?=$lang['mailbox']['bcc_info'];?></p>
             <div class="table-responsive">
               <table class="table table-striped" id="bcc_table"></table>
             </div>
             <div class="mass-actions-mailbox">
-              <div class="btn-group">
+              <div class="btn-group" data-acl="<?=$_SESSION['acl']['bcc_maps'];?>">
                 <a class="btn btn-sm btn-default" id="toggle_multi_select_all" data-id="bcc" href="#"><span class="glyphicon glyphicon-check" aria-hidden="true"></span> <?=$lang['mailbox']['toggle_all'];?></a>
                 <a class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" href="#"><?=$lang['mailbox']['quick_actions'];?> <span class="caret"></span></a>
                 <ul class="dropdown-menu">
-                  <li><a id="edit_selected" data-id="bcc" data-api-url='edit/bcc' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
-                  <li><a id="edit_selected" data-id="bcc" data-api-url='edit/bcc' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="bcc" data-api-url='edit/bcc' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="bcc" data-api-url='edit/bcc' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
                   <li role="separator" class="divider"></li>
-                  <li><a id="edit_selected" data-id="bcc" data-api-url='edit/bcc' data-api-attr='{"type":"sender"}' href="#"><?=$lang['mailbox']['bcc_to_sender'];?></a></li>
-                  <li><a id="edit_selected" data-id="bcc" data-api-url='edit/bcc' data-api-attr='{"type":"rcpt"}' href="#"><?=$lang['mailbox']['bcc_to_rcpt'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="bcc" data-api-url='edit/bcc' data-api-attr='{"type":"sender"}' href="#"><?=$lang['mailbox']['bcc_to_sender'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="bcc" data-api-url='edit/bcc' data-api-attr='{"type":"rcpt"}' href="#"><?=$lang['mailbox']['bcc_to_rcpt'];?></a></li>
                   <li role="separator" class="divider"></li>
-                  <li><a id="delete_selected" data-id="bcc" data-api-url='delete/bcc' href="#"><?=$lang['mailbox']['remove'];?></a></li>
+                  <li><a data-action="delete_selected" data-id="bcc" data-api-url='delete/bcc' href="#"><?=$lang['mailbox']['remove'];?></a></li>
                 </ul>
                 <a class="btn btn-sm btn-success" href="#" data-toggle="modal" data-target="#addBCCModalAdmin"><span class="glyphicon glyphicon-plus"></span> <?=$lang['mailbox']['add_bcc_entry'];?></a>
               </div>
             </div>
           </div>
-          <div class="panel panel-default">
+          <div class="panel panel-default <?=($_SESSION['mailcow_cc_role'] == "admin") ?: 'hidden';?>">
             <div class="panel-heading">
-              <h3 class="panel-title"><?=$lang['mailbox']['recipient_maps'];?></h3>
+              <?=$lang['mailbox']['recipient_maps'];?> <span class="badge badge-info table-lines"></span>
+              <div class="btn-group pull-right">
+                <button class="btn btn-xs btn-default refresh_table" data-draw="draw_recipient_map_table" data-table="recipient_map_table"><?=$lang['admin']['refresh'];?></button>
+              </div>
             </div>
             <p style="margin:10px" class="help-block"><?=$lang['mailbox']['recipient_map_info'];?></p>
             <div class="table-responsive">
               <table class="table table-striped" id="recipient_map_table"></table>
             </div>
-<?php
-if (isset($_SESSION['mailcow_cc_role']) && ($_SESSION['mailcow_cc_role'] == "admin"))
-  $display = 'block';
-else
-  $display = 'none';
-?>
             <div class="mass-actions-mailbox" style="display: <?php echo $display; ?>">
               <div class="btn-group">
                 <a class="btn btn-sm btn-default" id="toggle_multi_select_all" data-id="recipient_map" href="#"><span class="glyphicon glyphicon-check" aria-hidden="true"></span> <?=$lang['mailbox']['toggle_all'];?></a>
                 <a class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" href="#"><?=$lang['mailbox']['quick_actions'];?> <span class="caret"></span></a>
                 <ul class="dropdown-menu">
-                  <li><a id="edit_selected" data-id="recipient_map" data-api-url='edit/recipient_map' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
-                  <li><a id="edit_selected" data-id="recipient_map" data-api-url='edit/recipient_map' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="recipient_map" data-api-url='edit/recipient_map' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="recipient_map" data-api-url='edit/recipient_map' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
                   <li role="separator" class="divider"></li>
-                  <li><a id="delete_selected" data-id="recipient_map" data-api-url='delete/recipient_map' href="#"><?=$lang['mailbox']['remove'];?></a></li>
+                  <li><a data-action="delete_selected" data-id="recipient_map" data-api-url='delete/recipient_map' href="#"><?=$lang['mailbox']['remove'];?></a></li>
                 </ul>
                 <a class="btn btn-sm btn-success" href="#" data-toggle="modal" data-target="#addRecipientMapModalAdmin"><span class="glyphicon glyphicon-plus"></span> <?=$lang['mailbox']['add_recipient_map_entry'];?></a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div role="tabpanel" class="tab-pane <?=($_SESSION['mailcow_cc_role'] == "admin") ?: 'hidden';?>" id="tab-tls-policy">
+          <div class="panel panel-default">
+            <div class="panel-heading">
+              <?=$lang['mailbox']['tls_policy_maps_long'];?> <span class="badge badge-info table-lines"></span>
+              <div class="btn-group pull-right">
+                <button class="btn btn-xs btn-default refresh_table" data-draw="draw_tls_policy_table" data-table="tls_policy_table"><?=$lang['admin']['refresh'];?></button>
+              </div>
+            </div>
+            <p style="margin:10px" class="help-block"><?=$lang['mailbox']['tls_policy_maps_info'];?></p>
+            <div class="table-responsive">
+              <table class="table table-striped" id="tls_policy_table"></table>
+            </div>
+            <div class="mass-actions-mailbox">
+              <div class="btn-group">
+                <a class="btn btn-sm btn-default" id="toggle_multi_select_all" data-id="tls-policy-map" href="#"><span class="glyphicon glyphicon-check" aria-hidden="true"></span> <?=$lang['mailbox']['toggle_all'];?></a>
+                <a class="btn btn-sm btn-default dropdown-toggle" data-toggle="dropdown" href="#"><?=$lang['mailbox']['quick_actions'];?> <span class="caret"></span></a>
+                <ul class="dropdown-menu">
+                  <li><a data-action="edit_selected" data-id="tls-policy-map" data-api-url='edit/tls-policy-map' data-api-attr='{"active":"1"}' href="#"><?=$lang['mailbox']['activate'];?></a></li>
+                  <li><a data-action="edit_selected" data-id="tls-policy-map" data-api-url='edit/tls-policy-map' data-api-attr='{"active":"0"}' href="#"><?=$lang['mailbox']['deactivate'];?></a></li>
+                  <li role="separator" class="divider"></li>
+                  <li><a data-action="delete_selected" data-id="tls-policy-map" data-api-url='delete/tls-policy-map' href="#"><?=$lang['mailbox']['remove'];?></a></li>
+                </ul>
+                <a class="btn btn-sm btn-success" href="#" data-toggle="modal" data-target="#addTLSPolicyMapAdmin"><span class="glyphicon glyphicon-plus"></span> <?=$lang['mailbox']['add_tls_policy_map'];?></a>
               </div>
             </div>
           </div>
@@ -280,17 +341,20 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/modals/mailbox.php';
 <?php
 $lang_mailbox = json_encode($lang['mailbox']);
 echo "var lang = ". $lang_mailbox . ";\n";
+echo "var acl = '". json_encode($_SESSION['acl']) . "';\n";
 echo "var csrf_token = '". $_SESSION['CSRF']['TOKEN'] . "';\n";
 $role = ($_SESSION['mailcow_cc_role'] == "admin") ? 'admin' : 'domainadmin';
+$is_dual = (!empty($_SESSION["dual-login"]["username"])) ? 'true' : 'false';
 echo "var role = '". $role . "';\n";
+echo "var is_dual = " . $is_dual . ";\n";
 echo "var pagination_size = '". $PAGINATION_SIZE . "';\n";
 ?>
 </script>
-<script src="js/footable.min.js"></script>
-<script src="js/mailbox.js"></script>
 <?php
+$js_minifier->add('/web/js/site/mailbox.js');
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/footer.inc.php';
-} else {
+}
+else {
 	header('Location: /');
 	exit();
 }
