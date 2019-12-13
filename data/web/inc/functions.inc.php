@@ -1,4 +1,12 @@
 <?php
+function isset_has_content($var) {
+  if (isset($var) && $var != "") {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
 function hash_password($password) {
 	$salt_str = bin2hex(openssl_random_pseudo_bytes(8));
 	return "{SSHA256}".base64_encode(hash('sha256', $password . $salt_str, true) . $salt_str);
@@ -248,6 +256,25 @@ function hasMailboxObjectAccess($username, $role, $object) {
   }
 	return false;
 }
+function hasAliasObjectAccess($username, $role, $object) {
+	global $pdo;
+	if (!filter_var(html_entity_decode(rawurldecode($username)), FILTER_VALIDATE_EMAIL) && !ctype_alnum(str_replace(array('_', '.', '-'), '', $username))) {
+		return false;
+	}
+	if ($role != 'admin' && $role != 'domainadmin' && $role != 'user') {
+		return false;
+	}
+	if ($username == $object) {
+		return true;
+	}
+  $stmt = $pdo->prepare("SELECT `domain` FROM `alias` WHERE `address` = :object");
+  $stmt->execute(array(':object' => $object));
+  $row = $stmt->fetch(PDO::FETCH_ASSOC);
+  if (isset($row['domain']) && hasDomainAccess($username, $role, $row['domain'])) {
+    return true;
+  }
+	return false;
+}
 function pem_to_der($pem_key) {
   // Need to remove BEGIN/END PUBLIC KEY
   $lines = explode("\n", trim($pem_key));
@@ -338,7 +365,7 @@ function alertbox_log_parser($_data){
       }
       $log_array[] = array('msg' => json_encode($msg), 'type' => json_encode($type));
     }
-    if (!empty($log_array)) { 
+    if (!empty($log_array)) {
       return $log_array;
     }
   }
@@ -356,6 +383,12 @@ function verify_hash($hash, $password) {
     $osalt = str_replace($ohash, '', $dhash);
     // Check single salted SHA256 hash against extracted hash
     if (hash_equals(hash('sha256', $password . $osalt, true), $ohash)) {
+      return true;
+    }
+  }
+  elseif (preg_match('/^{PLAIN-MD5}/i', $hash)) {
+    $hash = preg_replace('/^{PLAIN-MD5}/i', '', $hash);
+    if (md5($password) == $hash) {
       return true;
     }
   }
@@ -534,8 +567,8 @@ function update_sogo_static_view() {
     WHERE TABLE_NAME = 'sogo_view'");
   $num_results = count($stmt->fetchAll(PDO::FETCH_ASSOC));
   if ($num_results != 0) {
-    $stmt = $pdo->query("REPLACE INTO _sogo_static_view (`c_uid`, `domain`, `c_name`, `c_password`, `c_cn`, `mail`, `aliases`, `ad_aliases`, `kind`, `multiple_bookings`)
-      SELECT `c_uid`, `domain`, `c_name`, `c_password`, `c_cn`, `mail`, `aliases`, `ad_aliases`, `kind`, `multiple_bookings` from sogo_view");
+    $stmt = $pdo->query("REPLACE INTO _sogo_static_view (`c_uid`, `domain`, `c_name`, `c_password`, `c_cn`, `mail`, `aliases`, `ad_aliases`, `ext_acl`, `kind`, `multiple_bookings`)
+      SELECT `c_uid`, `domain`, `c_name`, `c_password`, `c_cn`, `mail`, `aliases`, `ad_aliases`, `ext_acl`, `kind`, `multiple_bookings` from sogo_view");
     $stmt = $pdo->query("DELETE FROM _sogo_static_view WHERE `c_uid` NOT IN (SELECT `username` FROM `mailbox` WHERE `active` = '1');");
   }
   flush_memcached();
@@ -677,7 +710,7 @@ function user_get_alias_details($username) {
   while ($row = array_shift($run)) {
     $data['aliases_also_send_as'] = $row['send_as'];
   }
-  $stmt = $pdo->prepare("SELECT IFNULL(CONCAT(GROUP_CONCAT(DISTINCT `send_as` SEPARATOR ', '), ', ', GROUP_CONCAT(DISTINCT CONCAT('@',`alias_domain`) SEPARATOR ', ')), '&#10008;') AS `send_as` FROM `sender_acl` LEFT JOIN `alias_domain` ON `alias_domain`.`target_domain` =  TRIM(LEADING '@' FROM `send_as`) WHERE `logged_in_as` = :username AND `send_as` LIKE '@%';");
+  $stmt = $pdo->prepare("SELECT CONCAT_WS(', ', IFNULL(GROUP_CONCAT(DISTINCT `send_as` SEPARATOR ', '), '&#10008;'), GROUP_CONCAT(DISTINCT CONCAT('@',`alias_domain`) SEPARATOR ', ')) AS `send_as` FROM `sender_acl` LEFT JOIN `alias_domain` ON `alias_domain`.`target_domain` =  TRIM(LEADING '@' FROM `send_as`) WHERE `logged_in_as` = :username AND `send_as` LIKE '@%';");
   $stmt->execute(array(':username' => $username));
   $run = $stmt->fetchAll(PDO::FETCH_ASSOC);
   while ($row = array_shift($run)) {
@@ -691,7 +724,7 @@ function user_get_alias_details($username) {
   }
   return $data;
 }
-function is_valid_domain_name($domain_name) { 
+function is_valid_domain_name($domain_name) {
 	if (empty($domain_name)) {
 		return false;
 	}
@@ -730,7 +763,7 @@ function set_tfa($_data) {
     );
     return false;
   }
-  
+
 	switch ($_data["tfa_method"]) {
 		case "yubi_otp":
       $key_id = (!isset($_data["key_id"])) ? 'unidentified' : $_data["key_id"];
@@ -765,7 +798,7 @@ function set_tfa($_data) {
 			try {
         // We could also do a modhex translation here
         $yubico_modhex_id = substr($_data["otp_token"], 0, 12);
-        $stmt = $pdo->prepare("DELETE FROM `tfa` 
+        $stmt = $pdo->prepare("DELETE FROM `tfa`
           WHERE `username` = :username
             AND (`authmech` != 'yubi_otp')
             OR (`authmech` = 'yubi_otp' AND `secret` LIKE :modhex)");
@@ -932,7 +965,7 @@ function get_tfa($username = null) {
       WHERE `username` = :username AND `active` = '1'");
   $stmt->execute(array(':username' => $username));
   $row = $stmt->fetch(PDO::FETCH_ASSOC);
-  
+
 	switch ($row["authmech"]) {
 		case "yubi_otp":
       $data['name'] = "yubi_otp";
@@ -995,7 +1028,7 @@ function verify_tfa_login($username, $token) {
       WHERE `username` = :username AND `active` = '1'");
   $stmt->execute(array(':username' => $username));
   $row = $stmt->fetch(PDO::FETCH_ASSOC);
-  
+
 	switch ($row["authmech"]) {
 		case "yubi_otp":
 			if (!ctype_alnum($token) || strlen($token) != 44) {
@@ -1044,9 +1077,10 @@ function verify_tfa_login($username, $token) {
   case "u2f":
     try {
       $reg = $u2f->doAuthenticate(json_decode($_SESSION['authReq']), get_u2f_registrations($username), json_decode($token));
-      $stmt = $pdo->prepare("UPDATE `tfa` SET `counter` = ? WHERE `id` = ?");
-      $stmt->execute(array($reg->counter, $reg->id));
-      $_SESSION['tfa_id'] = $reg->id;
+      $stmt = $pdo->prepare("SELECT `id` FROM `tfa` WHERE `keyHandle` = ?");
+      $stmt->execute(array($reg->keyHandle));
+      $row_key_id = $stmt->fetch(PDO::FETCH_ASSOC);
+      $_SESSION['tfa_id'] = $row_key_id['id'];
       $_SESSION['authReq'] = null;
       $_SESSION['return'][] =  array(
         'type' => 'success',
@@ -1205,6 +1239,72 @@ function admin_api($action, $data = null) {
 		'msg' => 'admin_api_modified'
 	);
 }
+function license($action, $data = null) {
+	global $pdo;
+	global $redis;
+	global $lang;
+	if ($_SESSION['mailcow_cc_role'] != "admin") {
+		$_SESSION['return'][] =  array(
+			'type' => 'danger',
+      'log' => array(__FUNCTION__),
+			'msg' => 'access_denied'
+		);
+		return false;
+	}
+	switch ($action) {
+		case "verify":
+      // Keep result until revalidate button is pressed or session expired
+      $stmt = $pdo->query("SELECT `version` FROM `versions` WHERE `application` = 'GUID'");
+      $versions = $stmt->fetch(PDO::FETCH_ASSOC);
+      $post = array('guid' => $versions['version']);
+      $curl = curl_init('https://verify.mailcow.email');
+      curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+      curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
+      curl_setopt($curl, CURLOPT_POSTFIELDS, $post);
+      $response = curl_exec($curl);
+      curl_close($curl);
+      $json_return = json_decode($response, true);
+      if ($response && $json_return) {
+        if ($json_return['response'] === "ok") {
+          $_SESSION['gal']['valid'] = "true";
+          $_SESSION['gal']['c'] = $json_return['c'];
+          $_SESSION['gal']['s'] = $json_return['s'];
+          $_SESSION['gal']['m'] = str_repeat('🐄', substr_count($json_return['m'], 'o'));
+        }
+        elseif ($json_return['response'] === "invalid") {
+          $_SESSION['gal']['valid'] = "false";
+          $_SESSION['gal']['c'] = $lang['mailbox']['no'];
+          $_SESSION['gal']['s'] = $lang['mailbox']['no'];
+          $_SESSION['gal']['m'] = $lang['mailbox']['no'];
+        }
+      }
+      else {
+        $_SESSION['gal']['valid'] = "false";
+        $_SESSION['gal']['c'] = $lang['danger']['temp_error'];
+        $_SESSION['gal']['s'] = $lang['danger']['temp_error'];
+        $_SESSION['gal']['m'] = $lang['danger']['temp_error'];
+      }
+      try {
+        // json_encode needs "true"/"false" instead of true/false, to not encode it to 0 or 1
+        $redis->Set('LICENSE_STATUS_CACHE', json_encode($_SESSION['gal']));
+      }
+      catch (RedisException $e) {
+        $_SESSION['return'][] = array(
+          'type' => 'danger',
+          'log' => array(__FUNCTION__, $_action, $_data_log),
+          'msg' => array('redis_error', $e)
+        );
+        return false;
+      }
+      return $_SESSION['gal']['valid'];
+    break;
+    case "guid":
+      $stmt = $pdo->query("SELECT `version` FROM `versions` WHERE `application` = 'GUID'");
+      $versions = $stmt->fetch(PDO::FETCH_ASSOC);
+      return $versions['version'];
+    break;
+  }
+}
 function rspamd_ui($action, $data = null) {
 	global $lang;
 	if ($_SESSION['mailcow_cc_role'] != "admin") {
@@ -1281,7 +1381,7 @@ function get_u2f_registrations($username) {
 }
 function get_logs($application, $lines = false) {
   if ($lines === false) {
-    $lines = $GLOBALS['LOG_LINES'] - 1; 
+    $lines = $GLOBALS['LOG_LINES'] - 1;
   }
   elseif(is_numeric($lines) && $lines >= 1) {
     $lines = abs(intval($lines) - 1);
@@ -1486,25 +1586,61 @@ function solr_status() {
   $endpoint = 'http://solr:8983/solr/admin/cores';
   $params = array(
     'action' => 'STATUS',
-    'core' => 'dovecot',
+    'core' => 'dovecot-fts',
     'indexInfo' => 'true'
   );
   $url = $endpoint . '?' . http_build_query($params);
   curl_setopt($curl, CURLOPT_URL, $url);
   curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
   curl_setopt($curl, CURLOPT_POST, 0);
-  curl_setopt($curl, CURLOPT_TIMEOUT, 20);
-  $response = curl_exec($curl);
-  if ($response === false) {
+  curl_setopt($curl, CURLOPT_TIMEOUT, 10);
+  $response_core = curl_exec($curl);
+  if ($response_core === false) {
     $err = curl_error($curl);
     curl_close($curl);
     return false;
   }
   else {
     curl_close($curl);
-    $status = json_decode($response, true);
-    return (!empty($status['status']['dovecot'])) ? $status['status']['dovecot'] : false;
+    $curl = curl_init();
+    $status_core = json_decode($response_core, true);
+    $url = 'http://solr:8983/solr/admin/info/system';
+    curl_setopt($curl, CURLOPT_URL, $url);
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($curl, CURLOPT_POST, 0);
+    curl_setopt($curl, CURLOPT_TIMEOUT, 10);
+    $response_sysinfo = curl_exec($curl);
+    if ($response_sysinfo === false) {
+      $err = curl_error($curl);
+      curl_close($curl);
+      return false;
+    }
+    else {
+      curl_close($curl);
+      $status_sysinfo = json_decode($response_sysinfo, true);
+      $status = array_merge($status_core, $status_sysinfo);
+      return (!empty($status['status']['dovecot-fts']) && !empty($status['jvm']['memory'])) ? $status : false;
+    }
+    return (!empty($status['status']['dovecot-fts'])) ? $status['status']['dovecot-fts'] : false;
   }
   return false;
+}
+
+function cleanupJS($ignore = '', $folder = '/tmp/*.js') {
+    foreach (glob($folder) as $filename) {
+        if(strpos($filename, $ignore) !== false) {
+            continue;
+        }
+        unlink($filename);
+    }
+}
+
+function cleanupCSS($ignore = '', $folder = '/tmp/*.css') {
+    foreach (glob($folder) as $filename) {
+        if(strpos($filename, $ignore) !== false) {
+            continue;
+        }
+        unlink($filename);
+    }
 }
 ?>

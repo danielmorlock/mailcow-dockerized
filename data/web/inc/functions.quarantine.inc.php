@@ -296,13 +296,23 @@ function quarantine($_action, $_data = null) {
           $release_format = 'raw';
         }
         $max_size = $_data['max_size'];
+        $max_age = intval($_data['max_age']);
         $subject = $_data['subject'];
-        $sender = $_data['sender'];
+        if (!filter_var($_data['sender'], FILTER_VALIDATE_EMAIL)) {
+          $sender = '';
+        }
+        else {
+          $sender = $_data['sender'];
+        }
         $html = $_data['html_tmpl'];
+        if ($max_age <= 0) {
+          $max_age = 365;
+        }
         $exclude_domains = (array)$_data['exclude_domains'];
         try {
           $redis->Set('Q_RETENTION_SIZE', intval($retention_size));
           $redis->Set('Q_MAX_SIZE', intval($max_size));
+          $redis->Set('Q_MAX_AGE', $max_age);
           $redis->Set('Q_EXCLUDE_DOMAINS', json_encode($exclude_domains));
           $redis->Set('Q_RELEASE_FORMAT', $release_format);
           $redis->Set('Q_SENDER', $sender);
@@ -554,6 +564,28 @@ function quarantine($_action, $_data = null) {
                 );
               }
               curl_close($curl);
+              $curl = curl_init();
+              curl_setopt($curl, CURLOPT_UNIX_SOCKET_PATH, '/var/lib/rspamd/rspamd.sock');
+              curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+              curl_setopt($curl, CURLOPT_POST, 1);
+              curl_setopt($curl, CURLOPT_TIMEOUT, 30);
+              curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type: text/plain', 'Flag: 13'));
+              curl_setopt($curl, CURLOPT_URL,"http://rspamd/fuzzydel");
+              curl_setopt($curl, CURLOPT_POSTFIELDS, $row['msg']);
+              // It is most likely not a ham hash, so we ignore any error/warning response
+              // $response = curl_exec($curl);
+              curl_exec($curl);
+              // if (!curl_errno($curl)) {
+                // $response = json_decode($response, true);
+                // if (isset($response['error'])) {
+                  // $_SESSION['return'][] = array(
+                    // 'type' => 'warning',
+                    // 'log' => array(__FUNCTION__),
+                    // 'msg' => array('fuzzy_learn_error', $response['error'])
+                  // );
+                // }
+              // }
+              curl_close($curl);
               try {
                 $stmt = $pdo->prepare("DELETE FROM `quarantine` WHERE `id` = :id");
                 $stmt->execute(array(
@@ -614,7 +646,7 @@ function quarantine($_action, $_data = null) {
     break;
     case 'get':
       if ($_SESSION['mailcow_cc_role'] == "user") {
-        $stmt = $pdo->prepare('SELECT `id`, `qid`, `subject`, LOCATE("VIRUS_FOUND", `symbols`) AS `virus_flag`, `rcpt`, `sender`, UNIX_TIMESTAMP(`created`) AS `created` FROM `quarantine` WHERE `rcpt` = :mbox');
+        $stmt = $pdo->prepare('SELECT `id`, `qid`, `subject`, LOCATE("VIRUS_FOUND", `symbols`) AS `virus_flag`, `score`, `rcpt`, `sender`, UNIX_TIMESTAMP(`created`) AS `created`, `notified` FROM `quarantine` WHERE `rcpt` = :mbox');
         $stmt->execute(array(':mbox' => $_SESSION['mailcow_cc_username']));
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         while($row = array_shift($rows)) {
@@ -622,7 +654,7 @@ function quarantine($_action, $_data = null) {
         }
       }
       elseif ($_SESSION['mailcow_cc_role'] == "admin") {
-        $stmt = $pdo->query('SELECT `id`, `qid`, `subject`, LOCATE("VIRUS_FOUND", `symbols`) AS `virus_flag`, `rcpt`, `sender`, UNIX_TIMESTAMP(`created`) AS `created` FROM `quarantine`');
+        $stmt = $pdo->query('SELECT `id`, `qid`, `subject`, LOCATE("VIRUS_FOUND", `symbols`) AS `virus_flag`, `score`, `rcpt`, `sender`, UNIX_TIMESTAMP(`created`) AS `created`, `notified` FROM `quarantine`');
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         while($row = array_shift($rows)) {
           $q_meta[] = $row;
@@ -631,7 +663,7 @@ function quarantine($_action, $_data = null) {
       else {
         $domains = array_merge(mailbox('get', 'domains'), mailbox('get', 'alias_domains'));
         foreach ($domains as $domain) {
-          $stmt = $pdo->prepare('SELECT `id`, `qid`, `subject`, LOCATE("VIRUS_FOUND", `symbols`) AS `virus_flag`, `rcpt`, `sender`, UNIX_TIMESTAMP(`created`) AS `created` FROM `quarantine` WHERE `rcpt` REGEXP :domain');
+          $stmt = $pdo->prepare('SELECT `id`, `qid`, `subject`, LOCATE("VIRUS_FOUND", `symbols`) AS `virus_flag`, `score`, `rcpt`, `sender`, UNIX_TIMESTAMP(`created`) AS `created`, `notified` FROM `quarantine` WHERE `rcpt` REGEXP :domain');
           $stmt->execute(array(':domain' => '@' . $domain . '$'));
           $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
           while($row = array_shift($rows)) {
@@ -647,6 +679,7 @@ function quarantine($_action, $_data = null) {
           $settings['exclude_domains'] = json_decode($redis->Get('Q_EXCLUDE_DOMAINS'), true);
         }
         $settings['max_size'] = $redis->Get('Q_MAX_SIZE');
+        $settings['max_age'] = $redis->Get('Q_MAX_AGE');
         $settings['retention_size'] = $redis->Get('Q_RETENTION_SIZE');
         $settings['release_format'] = $redis->Get('Q_RELEASE_FORMAT');
         $settings['subject'] = $redis->Get('Q_SUBJ');
@@ -670,7 +703,7 @@ function quarantine($_action, $_data = null) {
       if (!is_numeric($_data) || empty($_data)) {
         return false;
       }
-      $stmt = $pdo->prepare('SELECT `rcpt`, `symbols`, `msg`, `domain` FROM `quarantine` WHERE `id`= :id');
+      $stmt = $pdo->prepare('SELECT `rcpt`, `score`, `symbols`, `msg`, `domain` FROM `quarantine` WHERE `id`= :id');
       $stmt->execute(array(':id' => $_data));
       $row = $stmt->fetch(PDO::FETCH_ASSOC);
       if (hasMailboxObjectAccess($_SESSION['mailcow_cc_username'], $_SESSION['mailcow_cc_role'], $row['rcpt'])) {

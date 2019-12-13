@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
   <meta name="theme-color" content="#F5D76E"/>
   <meta http-equiv="Referrer-Policy" content="same-origin">
   <title><?=$UI_TEXTS['title_name'];?></title>
@@ -26,8 +26,18 @@
     if (preg_match("/debug/i", $_SERVER['REQUEST_URI'])) {
       $css_minifier->add('/web/css/site/debug.css');
     }
+    if ($_SERVER['REQUEST_URI'] == '/') {
+      $css_minifier->add('/web/css/site/index.css');
+    }
+
+  $hash = $css_minifier->getDataHash();
+  $CSSPath = '/tmp/' . $hash . '.css';
+  if(!file_exists($CSSPath)) {
+    $css_minifier->minify($CSSPath);
+    cleanupCSS($hash);
+  }
   ?>
-  <style><?=$css_minifier->minify();?></style>
+  <link rel="stylesheet" href="/cache/<?=basename($CSSPath)?>">
   <?php if (strtolower(trim($DEFAULT_THEME)) != "lumen"): ?>
   <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.7/<?= strtolower(trim($DEFAULT_THEME)); ?>/bootstrap.min.css">
   <?php endif; ?>
