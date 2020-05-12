@@ -132,6 +132,7 @@ DBROOT=$(LC_ALL=C </dev/urandom tr -dc A-Za-z0-9 | head -c 28)
 # You should use HTTPS, but in case of SSL offloaded reverse proxies:
 # Might be important: This will also change the binding within the container.
 # If you use a proxy within Docker, point it to the ports you set below.
+# IMPORTANT: Do not use port 8081, 9081 or 65510!
 
 HTTP_PORT=80
 HTTP_BIND=0.0.0.0
@@ -157,6 +158,7 @@ SIEVE_PORT=4190
 DOVEADM_PORT=127.0.0.1:19991
 SQL_PORT=127.0.0.1:13306
 SOLR_PORT=127.0.0.1:18983
+REDIS_PORT=127.0.0.1:7654
 
 # Your timezone
 
@@ -216,6 +218,10 @@ SKIP_HTTP_VERIFICATION=n
 
 SKIP_CLAMD=${SKIP_CLAMD}
 
+# Skip SOGo: Will disable SOGo integration and therefore webmail, DAV protocols and ActiveSync support (experimental, unsupported, not fully implemented) - y/n
+
+SKIP_SOGO=n
+
 # Skip Solr on low-memory systems or if you do not want to store a readable index of your mails in solr-vol-1.
 
 SKIP_SOLR=${SKIP_SOLR}
@@ -233,14 +239,25 @@ USE_WATCHDOG=n
 
 ALLOW_ADMIN_EMAIL_LOGIN=n
 
-# Send notifications by mail (no DKIM signature, sent from watchdog@MAILCOW_HOSTNAME)
-# Can by multiple rcpts, NO quotation marks
+# Send notifications by mail (sent from watchdog@MAILCOW_HOSTNAME)
+# CAUTION:
+# 1. You should use external recipients
+# 2. Mails are sent unsigned (no DKIM)
+# 3. If you use DMARC, create a separate DMARC policy ("v=DMARC1; p=none;" in _dmarc.MAILCOW_HOSTNAME)
+# Multiple rcpts allowed, NO quotation marks, NO spaces
 
 #WATCHDOG_NOTIFY_EMAIL=a@example.com,b@example.com,c@example.com
 #WATCHDOG_NOTIFY_EMAIL=
 
 # Notify about banned IP (includes whois lookup)
 WATCHDOG_NOTIFY_BAN=y
+
+# Checks if mailcow is an open relay. Requires a SAL. More checks will follow.
+# https://www.servercow.de/mailcow?lang=en
+# https://www.servercow.de/mailcow?lang=de
+# No data is collected. Opt-in and anonymous.
+# Will only work with unmodified mailcow setups.
+WATCHDOG_EXTERNAL_CHECKS=n
 
 # Max log lines per service to keep in Redis logs
 
@@ -262,11 +279,16 @@ IPV6_NETWORK=fd4d:6169:6c63:6f77::/64
 
 #SNAT6_TO_SOURCE=
 
-# Create or override API key for web ui
+# Create or override an API key for the web UI
 # You _must_ define API_ALLOW_FROM, which is a comma separated list of IPs
-# API_KEY allowed chars: a-z, A-Z, 0-9, -
+# An API key defined as API_KEY has read-write access
+# An API key defined as API_KEY_READ_ONLY has read-only access
+# Allowed chars for API_KEY and API_KEY_READ_ONLY: a-z, A-Z, 0-9, -
+# You can define API_KEY and/or API_KEY_READ_ONLY
+# Using CIDR is not yet implemented within mailcow.conf, use the UI to allow networks.
 
 #API_KEY=
+#API_KEY_READ_ONLY=
 #API_ALLOW_FROM=172.22.1.1,127.0.0.1
 
 # mail_home is ~/Maildir

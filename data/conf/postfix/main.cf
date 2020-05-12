@@ -6,7 +6,7 @@ append_dot_mydomain = no
 smtpd_tls_cert_file = /etc/ssl/mail/cert.pem
 smtpd_tls_key_file = /etc/ssl/mail/key.pem
 tls_server_sni_maps = hash:/opt/postfix/conf/sni.map
-smtpd_use_tls=yes
+smtpd_use_tls = yes
 smtpd_tls_received_header = yes
 smtpd_tls_session_cache_database = btree:${data_directory}/smtpd_scache
 smtp_tls_session_cache_database = btree:${data_directory}/smtp_scache
@@ -34,6 +34,7 @@ milter_protocol = 6
 minimal_backoff_time = 300s
 plaintext_reject_code = 550
 postscreen_access_list = permit_mynetworks,
+  cidr:/opt/postfix/conf/custom_postscreen_whitelist.cidr,
   cidr:/opt/postfix/conf/postscreen_access.cidr,
   tcp:127.0.0.1:10027
 postscreen_bare_newline_enable = no
@@ -104,6 +105,7 @@ relay_domains = proxy:mysql:/opt/postfix/conf/sql/mysql_virtual_relay_domain_map
 relay_recipient_maps = proxy:mysql:/opt/postfix/conf/sql/mysql_relay_recipient_maps.cf
 sender_dependent_default_transport_maps = proxy:mysql:/opt/postfix/conf/sql/mysql_sender_dependent_default_transport_maps.cf
 smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+smtpd_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
 smtp_tls_cert_file = /etc/ssl/mail/cert.pem
 smtp_tls_key_file = /etc/ssl/mail/key.pem
 smtp_tls_loglevel = 1
@@ -177,21 +179,22 @@ smtp_sasl_auth_enable = yes
 smtp_sasl_password_maps = proxy:mysql:/opt/postfix/conf/sql/mysql_sasl_passwd_maps_sender_dependent.cf
 smtp_sasl_security_options =
 smtp_sasl_mechanism_filter = plain, login
-smtp_tls_policy_maps=proxy:mysql:/opt/postfix/conf/sql/mysql_tls_policy_override_maps.cf
+smtp_tls_policy_maps = proxy:mysql:/opt/postfix/conf/sql/mysql_tls_policy_override_maps.cf
 smtp_header_checks = pcre:/opt/postfix/conf/anonymize_headers.pcre
 mail_name = Postcow
 # local_transport map catches local destinations and prevents routing local dests when the next map would route "*"
 # Use custom_transport.pcre for custom transports
 transport_maps = pcre:/opt/postfix/conf/custom_transport.pcre,
   pcre:/opt/postfix/conf/local_transport,
+  proxy:mysql:/opt/postfix/conf/sql/mysql_relay_ne.cf,
   proxy:mysql:/opt/postfix/conf/sql/mysql_transport_maps.cf
 smtp_sasl_auth_soft_bounce = no
 postscreen_discard_ehlo_keywords = silent-discard, dsn
 compatibility_level = 2
 smtputf8_enable = yes
 # Define protocols for SMTPS and submission service
-submission_smtpd_tls_mandatory_protocols = !SSLv2, !SSLv3
-smtps_smtpd_tls_mandatory_protocols = !SSLv2, !SSLv3
+submission_smtpd_tls_mandatory_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
+smtps_smtpd_tls_mandatory_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
 
 # DO NOT EDIT ANYTHING BELOW #
 # User overrides #

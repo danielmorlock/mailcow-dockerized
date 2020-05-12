@@ -1,4 +1,4 @@
-FROM alpine:3.10
+FROM alpine:3.11
 LABEL maintainer "André Peters <andre.peters@servercow.de>"
 
 # Installation
@@ -34,5 +34,6 @@ RUN apk add --update \
   && chmod +x smtp-cli
 
 COPY watchdog.sh /watchdog.sh
+COPY check_mysql_slavestatus.sh /usr/lib/nagios/plugins/check_mysql_slavestatus.sh
 
 CMD /watchdog.sh 2> /dev/null

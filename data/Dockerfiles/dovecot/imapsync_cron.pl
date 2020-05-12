@@ -11,8 +11,8 @@ use sigtrap 'handler' => \&sig_handler, qw(INT TERM KILL QUIT);
 
 sub trim { my $s = shift; $s =~ s/^\s+|\s+$//g; return $s };
 my $t = Proc::ProcessTable->new;
-my $imapsync_running = grep { $_->{cmndline} =~ /^\/usr\/bin\/perl \/usr\/local\/bin\/imapsync\s/ } @{$t->table};
-if ($imapsync_running eq 1)
+my $imapsync_running = grep { $_->{cmndline} =~ /imapsync\s/i } @{$t->table};
+if ($imapsync_running ge 1)
 {
   print "imapsync is active, exiting...";
   exit;
@@ -44,6 +44,8 @@ $dbh = DBI->connect($dsn, '__DBUSER__', '__DBPASS__', {
   mysql_auto_reconnect => 1,
   mysql_enable_utf8mb4 => 1
 });
+$dbh->do("UPDATE imapsync SET is_running = 0");
+
 sub sig_handler {
   # Send die to force exception in "run"
   die "sig_handler received signal, preparing to exit...\n";

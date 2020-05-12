@@ -33,6 +33,7 @@ RUN groupadd -g 5000 vmail \
   libdbi-perl \
   libdigest-hmac-perl \
   libdist-checkconflicts-perl \
+  libencode-imaputf7-perl \
   libfile-copy-recursive-perl \
   libfile-tail-perl \
   libhtml-parser-perl \
@@ -101,6 +102,7 @@ RUN groupadd -g 5000 vmail \
 COPY trim_logs.sh /usr/local/bin/trim_logs.sh
 COPY clean_q_aged.sh /usr/local/bin/clean_q_aged.sh
 COPY syslog-ng.conf /etc/syslog-ng/syslog-ng.conf
+COPY syslog-ng-redis_slave.conf /etc/syslog-ng/syslog-ng-redis_slave.conf
 COPY imapsync /usr/local/bin/imapsync
 COPY postlogin.sh /usr/local/bin/postlogin.sh
 COPY imapsync_cron.pl /usr/local/bin/imapsync_cron.pl
@@ -115,6 +117,7 @@ COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY stop-supervisor.sh /usr/local/sbin/stop-supervisor.sh
 COPY quarantine_notify.py /usr/local/bin/quarantine_notify.py
 COPY quota_notify.py /usr/local/bin/quota_notify.py
+COPY repl_health.sh /usr/local/bin/repl_health.sh
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD exec /usr/bin/supervisord -c /etc/supervisor/supervisord.conf

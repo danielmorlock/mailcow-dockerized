@@ -218,20 +218,22 @@ function rspamd($_action, $_data = null) {
       }
       $maps = (array)$_data['map'];
       foreach ($maps as $map) {
-        if (!in_array($map, $RSPAMD_MAPS)) {
-          $_SESSION['return'][] = array(
-            'type' => 'danger',
-            'log' => array(__FUNCTION__, $_action, $_data_log),
-            'msg' => array('global_map_invalid', $map)
-          );
-          continue;
+        foreach ($RSPAMD_MAPS as $rspamd_map_type) {
+          if (!in_array($map, $rspamd_map_type)) {
+            $_SESSION['return'][] = array(
+              'type' => 'danger',
+              'log' => array(__FUNCTION__, $_action, $_data_log),
+              'msg' => array('global_map_invalid', $map)
+            );
+            continue;
+          }
         }
         try {
           if (file_exists('/rspamd_custom_maps/' . $map)) {
             $map_content = trim($_data['rspamd_map_data']);
             $map_handle = fopen('/rspamd_custom_maps/' . $map, 'w');
             if (!$map_handle) {
-              throw new Exception('File cannot be opened for writing.');
+              throw new Exception($lang['danger']['file_open_error']);
             }
             fwrite($map_handle, $map_content . PHP_EOL);
             fclose($map_handle);
